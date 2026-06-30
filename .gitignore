@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Markdown
+CLAUDE.md
+VERSION_CONTROL.md
