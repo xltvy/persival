@@ -63,7 +63,7 @@ The spec version this trace conforms to, e.g. `"1.0"`.
 | `persistence` | enum | ✓ | `session` \| `persistent` \| `transient`. |
 | `scope` | enum | ✓ | `agent_scoped` \| `shared`. |
 | `retrieval_method` | enum | ✓ | `vector` \| `graph` \| `exact` \| `none`. Store default. |
-| `agent` | string | — | Owning agent **name**, present iff `scope = agent_scoped`. |
+| `agent` | string | cond. | Owning agent **name**. **Required iff `scope = agent_scoped`; forbidden when `scope = shared`.** |
 
 The existing `short_term_memory` / `long_term_memory` arrays are **retained** (additivity) as the pre-extension representation. In an extended trace, `memory_stores` is authoritative and each legacy entry corresponds to exactly one `memory_stores` entry (the degenerate case); the frontend renders memory components from `memory_stores`.
 
@@ -98,14 +98,16 @@ No `content` field — see §2.4 and §8.
 
 ### 4.5 Action object — existing fields **plus** two new keys
 
-Existing (unchanged): `label`, `input` (LangChain message array), `output` (LangChain `LLMResult`), `agent_label`, `agent_name`, `model`, `span_id`, `components_in_input`, `components_in_output`.
+Existing (unchanged): `label`, `input` (LangChain message array), `output` (LangChain `LLMResult`), `agent_label`, `agent_name`, `model`, `span_id`, `components_in_input`, `components_in_output`. These are present in practice but are **not schema-enforced** — the schema requires only the new keys below, so that an unextended trace (or a thinner real trace missing e.g. `span_id`) still validates. This is what "additive" means: we assert only what we own.
 
 | New field | Type | Req | Notes |
 |---|---|---|---|
 | `session_id` | string | ✓ | → `sessions.session_id`. |
 | `memory_ops` | MemoryOp[] | ✓ | `[]` if the action touched no memory. |
 
-The `human_input` object (`label`, `time`, `input`) also gains **`session_id`** (required).
+The `human_input` object (`label`, `time`, `input`) also gains **`session_id`** (required); as with actions, only `session_id` is schema-enforced on it.
+
+**Object-type discrimination is by `label` prefix, not by field presence.** An object in a turn's inner array is a `human_input` iff its `label` begins with `human_input_`, and an `action` iff its `label` begins with `action_`. Consumers and the validator MUST NOT infer type from the presence of `agent_label`/`memory_ops` (a valid action may carry an empty `memory_ops`, and existing fields are not schema-required).
 
 ### 4.6 `MemoryOp` — an entry in `action.memory_ops[]`
 
@@ -115,7 +117,7 @@ The `human_input` object (`label`, `time`, `input`) also gains **`session_id`** 
 | `native_call` | string | ✓ | The backend-specific call name (attribute, not a type). |
 | `actor` | enum | ✓ | `reasoning_agent` \| `memory_controller`. **Never `external_input`.** |
 | `store_label` | string | ✓ | → `memory_stores.label`; the `operates_on` target. |
-| `item_ids` | string[] | ✓ | Items touched; `[]` only for `noop`. |
+| `item_ids` | string[] | ✓ | Items touched. **Enforced: non-empty (`minItems: 1`) for every op except `noop`; may be `[]` only for `noop`.** |
 | `retrieval_method` | enum | — | `reads` only; overrides the store default. |
 | `before_after` | object | cond. | Required for mutating ops; omitted for `read`/`noop` (§4.7). |
 | `native_details` | object | — | Polymorphic backend payload (§4.9). |
@@ -131,6 +133,8 @@ Present on mutating ops (`write`, `update`, `delete`, `transform`); **omitted** 
   "deleted": [ { "item_id": "…", "content": "…", "new_status": "invalidated" } ] // delete
 }
 ```
+
+In a `deleted` entry, `new_status` ∈ {`invalidated`, `evicted`, `expired`} — a delete/invalidate never sets `active` (this is a narrowing of the item-level `status` enum for this field only; the item-level `status` enum in §4.4 is unchanged).
 
 `content` strings are the human-readable memory content rendered in the details panel. A `read`'s effect is captured by `item_ids` + `retrieval_method`, not `before_after`. A `transform`'s lineage parents live on the **derived item's** `provenance.derived_from`, not here.
 

@@ -54,10 +54,17 @@ def structural_errors(validator: Draft202012Validator, trace: Any) -> list[str]:
 # Referential-integrity checks (what JSON Schema cannot express cleanly)       #
 # --------------------------------------------------------------------------- #
 def _classify_turn_object(obj: dict) -> str:
-    """An action carries agent_label / memory_ops; anything else in a turn is a human_input."""
-    if "agent_label" in obj or "memory_ops" in obj:
-        return "action"
-    return "human_input"
+    """Object type is determined by the `label` PREFIX (SCHEMA.md 4.5): human_input_* vs
+    action_*. NOT by the presence of agent_label/memory_ops. An object whose label is
+    absent or carries neither prefix is 'unknown' (a malformed turn object; its shape is
+    caught structurally by the positional prefixItems constraint)."""
+    label = obj.get("label")
+    if isinstance(label, str):
+        if label.startswith("human_input_"):
+            return "human_input"
+        if label.startswith("action_"):
+            return "action"
+    return "unknown"
 
 
 def referential_errors(trace: dict) -> list[str]:

@@ -89,10 +89,25 @@
         "scope": { "$ref": "#/$defs/enum_scope" },
         "retrieval_method": { "$ref": "#/$defs/enum_retrieval_method" },
         "agent": {
-          "description": "Owning agent name; present iff scope = agent_scoped (the iff is not enforced structurally here).",
+          "description": "Owning agent name; REQUIRED iff scope = agent_scoped, FORBIDDEN when scope = shared (enforced by the conditional below).",
           "type": "string"
         }
-      }
+      },
+      "allOf": [
+        {
+          "description": "SCHEMA.md 4.2 - agent is required for agent_scoped stores and forbidden otherwise.",
+          "if": {
+            "required": ["scope"],
+            "properties": { "scope": { "const": "agent_scoped" } }
+          },
+          "then": {
+            "required": ["agent"]
+          },
+          "else": {
+            "properties": { "agent": false }
+          }
+        }
+      ]
     },
     "session": {
       "description": "SCHEMA.md 4.3 - session index entry.",
@@ -143,48 +158,38 @@
       "items": { "$ref": "#/$defs/action" }
     },
     "human_input": {
-      "description": "SCHEMA.md 4.5 - existing AgentSeer human_input object plus the new required session_id. Permissive: additionalProperties allowed.",
+      "description": "SCHEMA.md 4.5 - existing AgentSeer human_input object. Additive: only the new key session_id is schema-required; existing fields are present-in-practice but not enforced. Type is by label prefix (human_input_*). Permissive: additionalProperties allowed.",
       "type": "object",
-      "required": ["label", "time", "input", "session_id"],
+      "required": ["session_id"],
       "properties": {
-        "label": { "type": "string" },
-        "time": { "type": "string" },
-        "input": {},
+        "label": {
+          "description": "Existing id; when present MUST carry the human_input_ prefix (SCHEMA.md 4.5). Not schema-required (additive).",
+          "type": "string",
+          "pattern": "^human_input_"
+        },
+        "time": { "description": "Existing; present in practice, not schema-enforced." },
+        "input": { "description": "Existing; present in practice, not schema-enforced." },
         "session_id": { "type": "string" }
       }
     },
     "action": {
-      "description": "SCHEMA.md 4.5 - existing AgentSeer action object plus the two new required keys session_id and memory_ops. Permissive: LangChain input/output internals are not enumerated.",
+      "description": "SCHEMA.md 4.5 - existing AgentSeer action object. Additive: only the two new keys session_id and memory_ops are schema-required; the existing AgentSeer fields (label, input, output, agent_label, agent_name, model, span_id, components_in_input, components_in_output) are present-in-practice but NOT schema-enforced, so a thinner trace still validates. Type is by label prefix (action_*). Permissive: additionalProperties allowed.",
       "type": "object",
-      "required": [
-        "label",
-        "input",
-        "output",
-        "agent_label",
-        "agent_name",
-        "model",
-        "span_id",
-        "components_in_input",
-        "components_in_output",
-        "session_id",
-        "memory_ops"
-      ],
+      "required": ["session_id", "memory_ops"],
       "properties": {
-        "label": { "type": "string" },
-        "input": { "type": "array" },
-        "output": { "type": "object" },
-        "agent_label": { "type": "string" },
-        "agent_name": { "type": "string" },
-        "model": { "type": "string" },
-        "span_id": { "type": "string" },
-        "components_in_input": {
-          "type": "array",
-          "items": { "type": "string" }
+        "label": {
+          "description": "Existing id; when present MUST carry the action_ prefix (SCHEMA.md 4.5). Not schema-required (additive).",
+          "type": "string",
+          "pattern": "^action_"
         },
-        "components_in_output": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
+        "input": { "description": "Existing LangChain message array; present in practice, not schema-enforced." },
+        "output": { "description": "Existing LangChain LLMResult; present in practice, not schema-enforced." },
+        "agent_label": { "description": "Existing; present in practice, not schema-enforced." },
+        "agent_name": { "description": "Existing; present in practice, not schema-enforced." },
+        "model": { "description": "Existing; present in practice, not schema-enforced." },
+        "span_id": { "description": "Existing; present in practice, not schema-enforced." },
+        "components_in_input": { "description": "Existing; present in practice, not schema-enforced." },
+        "components_in_output": { "description": "Existing; present in practice, not schema-enforced." },
         "session_id": { "type": "string" },
         "memory_ops": {
           "type": "array",
@@ -240,6 +245,20 @@
               "before_after": false
             }
           }
+        },
+        {
+          "description": "SCHEMA.md 4.6 - item_ids must be non-empty for every op except noop; noop may be empty.",
+          "if": {
+            "required": ["op"],
+            "properties": {
+              "op": { "not": { "const": "noop" } }
+            }
+          },
+          "then": {
+            "properties": {
+              "item_ids": { "minItems": 1 }
+            }
+          }
         }
       ]
     },
@@ -291,7 +310,11 @@
       "properties": {
         "item_id": { "type": "string" },
         "content": { "type": "string" },
-        "new_status": { "$ref": "#/$defs/enum_item_status" }
+        "new_status": {
+          "description": "SCHEMA.md 4.7 - a delete/invalidate never sets 'active'; narrowing of the item-level status enum for this field only.",
+          "type": "string",
+          "enum": ["invalidated", "evicted", "expired"]
+        }
       }
     },
     "snapshot": {
