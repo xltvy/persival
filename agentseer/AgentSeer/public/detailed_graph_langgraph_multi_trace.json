@@ -227,6 +227,15 @@
         "label": "long_term_memory_0",
         "long_term_memory": "knowledge_base_long_term_memory"
       }
+    ],
+    "memory_stores": [
+      { "label": "short_term_memory_0", "name": "main_agent_messages", "locus": "in_context", "substrate": "text", "persistence": "session", "scope": "agent_scoped", "retrieval_method": "none", "agent": "main_agent" },
+      { "label": "short_term_memory_1", "name": "final_report_agent_messages", "locus": "in_context", "substrate": "text", "persistence": "session", "scope": "agent_scoped", "retrieval_method": "none", "agent": "final_report_agent" },
+      { "label": "short_term_memory_2", "name": "revenue_analyst_agent_messages", "locus": "in_context", "substrate": "text", "persistence": "session", "scope": "agent_scoped", "retrieval_method": "none", "agent": "revenue_analyst_agent" },
+      { "label": "short_term_memory_3", "name": "order_analyst_agent_messages", "locus": "in_context", "substrate": "text", "persistence": "session", "scope": "agent_scoped", "retrieval_method": "none", "agent": "order_analyst_agent" },
+      { "label": "short_term_memory_4", "name": "product_performance_analyst_agent_messages", "locus": "in_context", "substrate": "text", "persistence": "session", "scope": "agent_scoped", "retrieval_method": "none", "agent": "product_performance_analyst_agent" },
+      { "label": "short_term_memory_5", "name": "strategic_analyst_agent_messages", "locus": "in_context", "substrate": "text", "persistence": "session", "scope": "agent_scoped", "retrieval_method": "none", "agent": "strategic_analyst_agent" },
+      { "label": "long_term_memory_0", "name": "knowledge_base_long_term_memory", "locus": "out_of_context", "substrate": "text", "persistence": "persistent", "scope": "shared", "retrieval_method": "vector" }
     ]
   },
   "actions": [

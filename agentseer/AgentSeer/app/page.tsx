@@ -29,6 +29,9 @@ import ToolNode from './toolNode';
 import HumanInputNode from './humanInputNode';
 import RightPanel from './RightPanel';
 import AttackAnalysisModal from './AttackAnalysisModal';
+import StoreNode from './memory/storeNode';
+import { spliceMemoryStoreNodes } from './memory/deriveStoreNodes';
+import type { MemoryStore } from './memory/types';
 
 const flowKey = 'example-flow';
 
@@ -87,8 +90,20 @@ function Flow() {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const response = await fetch('/reactflow_graph_with_multi_trace.json');
-        const data = await response.json();
+        const [rfResponse, nativeResponse] = await Promise.all([
+          fetch('/reactflow_graph_with_multi_trace.json'),
+          fetch('/detailed_graph_langgraph_multi_trace.json'),
+        ]);
+        const data = await rfResponse.json();
+        // Native trace supplies the authoritative memory_stores list (Phase 1, Fork C).
+        // Fall back to the baked memory nodes if it is missing/unparseable.
+        let memoryStores: MemoryStore[] | undefined;
+        try {
+          const nativeData = await nativeResponse.json();
+          memoryStores = nativeData?.components?.memory_stores;
+        } catch {
+          memoryStores = undefined;
+        }
         // Combine nodes and edges from both component and action
         const actionNodes = data.action.nodes.map((node: Node<Record<string, unknown>, string>) => ({
           ...node,
@@ -100,7 +115,14 @@ function Flow() {
           },
         }));
 
-        const componentNodes = data.component.nodes.map((node: Node<Record<string, unknown>, string>) => ({
+        // Derive-and-replace the memory subset from memory_stores before styling.
+        // memory_stores is now authoritative for which memory nodes exist; the baked
+        // memory_node entries are kept only when memory_stores is absent (fallback).
+        const rawComponentNodes = spliceMemoryStoreNodes(
+          data.component.nodes,
+          memoryStores,
+        ) as unknown as Node<Record<string, unknown>, string>[];
+        const componentNodes = rawComponentNodes.map((node) => ({
           ...node,
           isHighlighted: highlightedComponents.includes(node.id),
           style: {
@@ -264,6 +286,11 @@ function Flow() {
     } else if (node.type === 'memory_node') {
       setHighlightedComponents([]);
       setSelectedNode(node);
+    } else if (node.type === 'memory_store_node') {
+      // Phase 1: store nodes are selectable but have no details panel yet
+      // (deferred). RightPanel's default branch renders nothing for this type.
+      setHighlightedComponents([]);
+      setSelectedNode(node);
     } else if (node.type === 'tool_node') {
       setHighlightedComponents([]);
       setSelectedNode(node);
@@ -337,6 +364,7 @@ function Flow() {
               llm_call_node: genericLLMNode,
               agent_node: AgentNode,
               memory_node: MemoryNode,
+              memory_store_node: StoreNode,
               tool_node: ToolNode,
               human_input_node: HumanInputNode
             }}
@@ -402,6 +430,7 @@ function Flow() {
               llm_call_node: genericLLMNode,
               agent_node: AgentNode,
               memory_node: MemoryNode,
+              memory_store_node: StoreNode,
               tool_node: ToolNode,
               human_input_node: HumanInputNode
             }}
