@@ -3,7 +3,8 @@
 
 Validates a trace against schema/trace.schema.json (structure) and then runs the
 referential-integrity checks that JSON Schema cannot express cleanly (cross-references
-between memory_ops, memory_items, memory_stores, sessions, and action labels).
+between memory_ops, memory_items, memory_stores, sessions, and action labels), plus a
+uniqueness check (h) over each identity namespace.
 
 Usage:
     python schema/validate.py <path>
@@ -21,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -193,15 +195,112 @@ def referential_errors(trace: dict) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
+# Uniqueness checks (identity namespaces; not expressible in JSON Schema)      #
+# --------------------------------------------------------------------------- #
+def uniqueness_errors(trace: dict) -> tuple[list[str], list[str]]:
+    """Check (h): identity-namespace uniqueness. A duplicate silently collapses
+    referential links, so it must be caught here (JSON Schema cannot express
+    cross-array uniqueness).
+
+    Returns (errors, warnings):
+      * INTRA-namespace duplicates are ERRORS (fatal) — the same label/id appearing
+        twice in one namespace breaks the "node.id === label" identity contract.
+      * CROSS-namespace collisions are WARNINGS (non-fatal). Each reference field
+        targets exactly one namespace (op.store_label -> stores, op.item_ids ->
+        items, provenance.origin_session -> sessions, provenance.origin_action ->
+        action labels), so a string reused across namespaces does NOT actually
+        collapse any reference. It is reported as an authoring smell, not an error.
+        POLICY FLAGGED FOR REVIEW — see the deliverable note.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not isinstance(trace, dict):
+        return errors, warnings
+
+    components = trace.get("components") or {}
+    stores = components.get("memory_stores") or []
+    items = trace.get("memory_items") or []
+    sessions = trace.get("sessions") or []
+    actions = trace.get("actions") or []
+
+    def collect(pairs) -> dict:
+        d: dict = defaultdict(list)
+        for val, where in pairs:
+            d[val].append(where)
+        return d
+
+    store_occ = collect(
+        (s.get("label"), f"memory_stores[{i}]")
+        for i, s in enumerate(stores)
+        if isinstance(s, dict) and "label" in s
+    )
+    item_occ = collect(
+        (it.get("item_id"), f"memory_items[{i}]")
+        for i, it in enumerate(items)
+        if isinstance(it, dict) and "item_id" in it
+    )
+    session_occ = collect(
+        (s.get("session_id"), f"sessions[{i}]")
+        for i, s in enumerate(sessions)
+        if isinstance(s, dict) and "session_id" in s
+    )
+    label_pairs = []
+    for t_idx, turn in enumerate(actions):
+        if not isinstance(turn, list):
+            continue
+        for o_idx, obj in enumerate(turn):
+            if isinstance(obj, dict) and "label" in obj:
+                label_pairs.append((obj["label"], f"actions[{t_idx}][{o_idx}]"))
+    label_occ = collect(label_pairs)
+
+    namespaces = [
+        ("memory_stores[].label", store_occ),
+        ("memory_items[].item_id", item_occ),
+        ("sessions[].session_id", session_occ),
+        ("action/human_input label", label_occ),
+    ]
+
+    # Intra-namespace duplicates -> errors, listing every occurrence.
+    for name, occ in namespaces:
+        for val, wheres in occ.items():
+            if len(wheres) > 1:
+                errors.append(
+                    f"(h) duplicate {name} '{val}' appears {len(wheres)} times "
+                    f"at {', '.join(wheres)}"
+                )
+
+    # Cross-namespace collisions -> warnings.
+    for i in range(len(namespaces)):
+        for j in range(i + 1, len(namespaces)):
+            n1, occ1 = namespaces[i]
+            n2, occ2 = namespaces[j]
+            shared = {v for v in occ1 if v is not None} & {v for v in occ2 if v is not None}
+            for val in sorted(shared):
+                warnings.append(
+                    f"(h-x) identifier '{val}' is used in both {n1} and {n2} — "
+                    f"distinct namespaces, not fatal, but a possible authoring smell"
+                )
+
+    return errors, warnings
+
+
+# --------------------------------------------------------------------------- #
 # Driver                                                                       #
 # --------------------------------------------------------------------------- #
 def validate_trace(
     validator: Draft202012Validator, trace: Any, label: str
-) -> list[str]:
-    """Validate one trace; return combined structural + referential failure lines."""
+) -> tuple[list[str], list[str]]:
+    """Validate one trace; return (problems, warnings).
+
+    problems = structural + referential + uniqueness failures (fatal).
+    warnings = non-fatal advisories (currently cross-namespace id collisions).
+    """
     problems = [f"[structural] {e}" for e in structural_errors(validator, trace)]
     problems += [f"[referential] {e}" for e in referential_errors(trace)]
-    return problems
+    uniq_errors, uniq_warnings = uniqueness_errors(trace if isinstance(trace, dict) else {})
+    problems += [f"[uniqueness] {e}" for e in uniq_errors]
+    warnings = [f"[uniqueness] {w}" for w in uniq_warnings]
+    return problems, warnings
 
 
 def load_traces(path: Path, mode: str) -> list[tuple[str, Any]]:
@@ -250,8 +349,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     total_failures = 0
+    total_warnings = 0
     for label, trace in traces:
-        problems = validate_trace(validator, trace, label)
+        problems, warnings = validate_trace(validator, trace, label)
+        total_warnings += len(warnings)
         if problems:
             total_failures += len(problems)
             print(f"FAIL  {path} :: {label}  ({len(problems)} problem(s))")
@@ -259,13 +360,16 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"    - {p}")
         else:
             print(f"OK    {path} :: {label}")
+        for w in warnings:
+            print(f"    ! WARNING {w}")
 
     print()
     n = len(traces)
+    warn_note = f" ({total_warnings} warning(s))" if total_warnings else ""
     if total_failures:
-        print(f"RESULT: {total_failures} problem(s) across {n} trace(s) in {path}")
+        print(f"RESULT: {total_failures} problem(s) across {n} trace(s) in {path}{warn_note}")
         return 1
-    print(f"RESULT: all {n} trace(s) valid in {path}")
+    print(f"RESULT: all {n} trace(s) valid in {path}{warn_note}")
     return 0
 
 
