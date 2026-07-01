@@ -1,0 +1,354 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://persival.local/schema/trace.schema.json",
+  "title": "Persival extended native trace",
+  "description": "JSON Schema (draft 2020-12) encoding the STRUCTURAL contract of schema/SCHEMA.md v1.0. Term semantics are defined in schema/GLOSSARY.md. Strict (additionalProperties:false) on objects Persival defines; permissive on the existing AgentSeer action/human_input objects that carry unenumerated LangChain fields. Referential-integrity constraints that JSON Schema cannot express cleanly are enforced by schema/validate.py, not here.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "components",
+    "sessions",
+    "memory_items",
+    "actions",
+    "actions_edge"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "SCHEMA.md 4.1 - the spec version this trace conforms to; additive within the 1.x line.",
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$"
+    },
+    "components": {
+      "description": "SCHEMA.md 3. Existing AgentSeer object extended with memory_stores; kept permissive because agents/tools carry unenumerated upstream fields.",
+      "type": "object",
+      "required": ["agents", "tools", "memory_stores"],
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "short_term_memory": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "long_term_memory": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "memory_stores": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/memory_store" }
+        }
+      }
+    },
+    "sessions": {
+      "description": "SCHEMA.md 4.3.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/session" }
+    },
+    "memory_items": {
+      "description": "SCHEMA.md 4.4 - top-level, content-free item registry; items span sessions.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/memory_item" }
+    },
+    "actions": {
+      "description": "SCHEMA.md 3/4.5 - array-of-arrays: the outer array is turns; each inner array is one human_input object followed by action objects.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/turn" }
+    },
+    "actions_edge": {
+      "description": "SCHEMA.md 3/7 - existing, unchanged legacy structure (array-of-arrays of edges). Kept permissive.",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/action_edge" }
+      }
+    },
+    "snapshots": {
+      "description": "SCHEMA.md 4.8 - OPTIONAL session-boundary full state.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/snapshot" }
+    }
+  },
+  "$defs": {
+    "memory_store": {
+      "description": "SCHEMA.md 4.2 - authoritative generalised store descriptor.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "name", "locus", "substrate", "persistence", "scope", "retrieval_method"],
+      "properties": {
+        "label": { "type": "string" },
+        "name": { "type": "string" },
+        "locus": { "$ref": "#/$defs/enum_locus" },
+        "substrate": { "$ref": "#/$defs/enum_substrate" },
+        "persistence": { "$ref": "#/$defs/enum_persistence" },
+        "scope": { "$ref": "#/$defs/enum_scope" },
+        "retrieval_method": { "$ref": "#/$defs/enum_retrieval_method" },
+        "agent": {
+          "description": "Owning agent name; present iff scope = agent_scoped (the iff is not enforced structurally here).",
+          "type": "string"
+        }
+      }
+    },
+    "session": {
+      "description": "SCHEMA.md 4.3 - session index entry.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "order"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "order": { "type": "integer" },
+        "label": { "type": "string" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "memory_item": {
+      "description": "SCHEMA.md 4.4 - content-free item registry entry.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_id", "store_label", "status", "provenance"],
+      "properties": {
+        "item_id": { "type": "string" },
+        "store_label": { "type": "string" },
+        "status": { "$ref": "#/$defs/enum_item_status" },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "provenance": {
+      "description": "SCHEMA.md 4.4 - item origin record (W3C PROV-modelled).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin_action", "origin_session", "content_origin", "derived_from"],
+      "properties": {
+        "origin_action": { "type": "string" },
+        "origin_session": { "type": "string" },
+        "content_origin": { "$ref": "#/$defs/enum_content_origin" },
+        "derived_from": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "turn": {
+      "description": "SCHEMA.md 3 - one turn: element 0 is a human_input object, elements 1..n are action objects.",
+      "type": "array",
+      "minItems": 1,
+      "prefixItems": [
+        { "$ref": "#/$defs/human_input" }
+      ],
+      "items": { "$ref": "#/$defs/action" }
+    },
+    "human_input": {
+      "description": "SCHEMA.md 4.5 - existing AgentSeer human_input object plus the new required session_id. Permissive: additionalProperties allowed.",
+      "type": "object",
+      "required": ["label", "time", "input", "session_id"],
+      "properties": {
+        "label": { "type": "string" },
+        "time": { "type": "string" },
+        "input": {},
+        "session_id": { "type": "string" }
+      }
+    },
+    "action": {
+      "description": "SCHEMA.md 4.5 - existing AgentSeer action object plus the two new required keys session_id and memory_ops. Permissive: LangChain input/output internals are not enumerated.",
+      "type": "object",
+      "required": [
+        "label",
+        "input",
+        "output",
+        "agent_label",
+        "agent_name",
+        "model",
+        "span_id",
+        "components_in_input",
+        "components_in_output",
+        "session_id",
+        "memory_ops"
+      ],
+      "properties": {
+        "label": { "type": "string" },
+        "input": { "type": "array" },
+        "output": { "type": "object" },
+        "agent_label": { "type": "string" },
+        "agent_name": { "type": "string" },
+        "model": { "type": "string" },
+        "span_id": { "type": "string" },
+        "components_in_input": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "components_in_output": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "session_id": { "type": "string" },
+        "memory_ops": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/memory_op" }
+        }
+      }
+    },
+    "action_edge": {
+      "description": "SCHEMA.md 7 - legacy action edge (source, target, optional memory_label). Kept permissive.",
+      "type": "object",
+      "required": ["source", "target"],
+      "properties": {
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "memory_label": { "type": "string" }
+      }
+    },
+    "memory_op": {
+      "description": "SCHEMA.md 4.6 - a single typed memory access performed by an action. before_after presence is conditional on the op verb (SCHEMA.md 4.6/4.7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "native_call", "actor", "store_label", "item_ids"],
+      "properties": {
+        "op": { "$ref": "#/$defs/enum_op" },
+        "native_call": { "type": "string" },
+        "actor": { "$ref": "#/$defs/enum_op_actor" },
+        "store_label": { "type": "string" },
+        "item_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "retrieval_method": { "$ref": "#/$defs/enum_retrieval_method" },
+        "before_after": { "$ref": "#/$defs/before_after" },
+        "native_details": {
+          "description": "SCHEMA.md 4.9 - free-form polymorphic backend payload.",
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "description": "SCHEMA.md 4.6/4.7 - before_after is REQUIRED for mutating ops (write|update|delete|transform) and MUST be ABSENT for read|noop.",
+          "if": {
+            "required": ["op"],
+            "properties": {
+              "op": { "enum": ["write", "update", "delete", "transform"] }
+            }
+          },
+          "then": {
+            "required": ["before_after"]
+          },
+          "else": {
+            "properties": {
+              "before_after": false
+            }
+          }
+        }
+      ]
+    },
+    "before_after": {
+      "description": "SCHEMA.md 4.7 - mutation diff; only the arrays relevant to the op are populated.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ba_added_entry" }
+        },
+        "updated": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ba_updated_entry" }
+        },
+        "deleted": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ba_deleted_entry" }
+        }
+      }
+    },
+    "ba_added_entry": {
+      "description": "SCHEMA.md 4.7 - write / transform (derived item).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_id", "content"],
+      "properties": {
+        "item_id": { "type": "string" },
+        "content": { "type": "string" }
+      }
+    },
+    "ba_updated_entry": {
+      "description": "SCHEMA.md 4.7 - update.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_id", "before", "after"],
+      "properties": {
+        "item_id": { "type": "string" },
+        "before": { "type": "string" },
+        "after": { "type": "string" }
+      }
+    },
+    "ba_deleted_entry": {
+      "description": "SCHEMA.md 4.7 - delete.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_id", "content", "new_status"],
+      "properties": {
+        "item_id": { "type": "string" },
+        "content": { "type": "string" },
+        "new_status": { "$ref": "#/$defs/enum_item_status" }
+      }
+    },
+    "snapshot": {
+      "description": "SCHEMA.md 4.8 - optional session-boundary full store item-set, by reference.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "boundary", "store_label", "item_ids"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "boundary": { "$ref": "#/$defs/enum_boundary" },
+        "store_label": { "type": "string" },
+        "item_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "enum_locus": {
+      "type": "string",
+      "enum": ["in_context", "out_of_context", "intrinsic"]
+    },
+    "enum_substrate": {
+      "type": "string",
+      "enum": ["text", "graph", "activation", "parametric"]
+    },
+    "enum_persistence": {
+      "type": "string",
+      "enum": ["session", "persistent", "transient"]
+    },
+    "enum_scope": {
+      "type": "string",
+      "enum": ["agent_scoped", "shared"]
+    },
+    "enum_retrieval_method": {
+      "type": "string",
+      "enum": ["vector", "graph", "exact", "none"]
+    },
+    "enum_op": {
+      "type": "string",
+      "enum": ["write", "read", "update", "delete", "transform", "noop"]
+    },
+    "enum_op_actor": {
+      "description": "SCHEMA.md 4.6 / GLOSSARY 5 - op actor is reasoning_agent or memory_controller ONLY; never external_input.",
+      "type": "string",
+      "enum": ["reasoning_agent", "memory_controller"]
+    },
+    "enum_content_origin": {
+      "type": "string",
+      "enum": ["reasoning_agent", "memory_controller", "external_input"]
+    },
+    "enum_item_status": {
+      "type": "string",
+      "enum": ["active", "invalidated", "evicted", "expired"]
+    },
+    "enum_boundary": {
+      "type": "string",
+      "enum": ["start", "end"]
+    }
+  }
+}
