@@ -200,13 +200,18 @@ function Flow() {
         // Create set of active nodes (selected node + target nodes)
         const activeNodeIds = new Set([selectedNode?.id, ...targetNodeIds]);
 
-        // Update action nodes with opacity changes
+        // Update action nodes with opacity changes. Phase 2: op-node satellites
+        // are EXEMPT from the generic selection dim — they always keep full
+        // opacity so selecting an action never fades its own op layer. (The
+        // "select action → highlight its ops" relationship is Phase 3.)
         setActionNodes(nodes => nodes.map(node => ({
           ...node,
           isHighlighted: highlightedComponents.includes(node.id),
           style: {
             ...node.style,
-            opacity: selectedNode ? (activeNodeIds.has(node.id) ? 1 : 0.3) : 1,
+            opacity: node.type === 'memory_op_node'
+              ? 1
+              : (selectedNode ? (activeNodeIds.has(node.id) ? 1 : 0.3) : 1),
             transition: 'opacity 0.3s ease',
           },
         })));

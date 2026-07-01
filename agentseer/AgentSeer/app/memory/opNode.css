@@ -4,10 +4,10 @@
    glance without needing to parse text. */
 
 .op-node {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  width: 104px;
+  width: fit-content;
   height: 34px;
   box-sizing: border-box;
   padding: 4px 8px;
@@ -16,6 +16,7 @@
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  white-space: nowrap;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
@@ -25,10 +26,9 @@
   flex-shrink: 0;
 }
 
+/* Full verb word, never truncated — this is an observability tool; nothing to decode. */
 .op-node-verb {
   text-transform: uppercase;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

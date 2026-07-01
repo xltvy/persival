@@ -24,9 +24,24 @@ import type { MemoryOp, OpNodeData } from './types';
 // min-width 220px; same-column vertical gap 400px).
 const ACTION_W = 220; // action node footprint width
 const GAP_X = 36; // clearance between action node edge and satellite
-const SAT_W = 104; // op-node width (matches opNode.css)
 const FAN_STEP = 44; // vertical pitch between stacked ops
 const FAN_Y0 = 8; // vertical offset of the first op from the action's top
+
+// Op pills are fit-content (opNode.css) — the widest verb ("transform") is
+// noticeably wider than a fixed box, so the fan offset must use each pill's
+// ACTUAL width, not a constant, to keep the action-side gap uniform. Estimated
+// from the pill's box model + per-character advance of the uppercase 0.72rem
+// bold label; kept slightly generous so the gap never closes visually.
+const PILL_HPAD = 16; // 8px left + 8px right padding
+const PILL_BORDER = 3; // 1.5px each side
+const PILL_GLYPH = 16; // glyph advance
+const PILL_GAP = 6; // gap between glyph and label
+const PILL_CHAR = 7.6; // per-uppercase-char advance at 0.72rem bold
+
+/** Estimated rendered width of an op pill for the given verb label. */
+function pillWidth(verb: string): number {
+  return PILL_HPAD + PILL_BORDER + PILL_GLYPH + PILL_GAP + verb.length * PILL_CHAR;
+}
 
 // Minimal shape of a rendered ReactFlow action node we read here.
 interface RawActionNode {
@@ -125,10 +140,15 @@ export function spliceOpNodes(
       const side = sideByLabel.get(label) ?? 1;
 
       ops.forEach((op, i) => {
+        // Uniform action-side gap on both sides. Right pills anchor their LEFT
+        // edge a fixed gap right of the action box (they extend rightward by
+        // their own width). Left pills must anchor their RIGHT edge a fixed gap
+        // left of the action box, so the top-left x subtracts the ACTUAL width.
+        const w = pillWidth(op.op);
         const satX =
           side === 1
             ? parentPos.x + ACTION_W + GAP_X
-            : parentPos.x - GAP_X - SAT_W;
+            : parentPos.x - GAP_X - w;
         const satY = parentPos.y + FAN_Y0 + i * FAN_STEP;
         const opId = `${label}__op_${i}`;
         nodes.push({
