@@ -98,16 +98,20 @@ No `content` field — see §2.4 and §8.
 
 ### 4.5 Action object — existing fields **plus** two new keys
 
-Existing (unchanged): `label`, `input` (LangChain message array), `output` (LangChain `LLMResult`), `agent_label`, `agent_name`, `model`, `span_id`, `components_in_input`, `components_in_output`. These are present in practice but are **not schema-enforced** — the schema requires only the new keys below, so that an unextended trace (or a thinner real trace missing e.g. `span_id`) still validates. This is what "additive" means: we assert only what we own.
+Existing fields split into two categories:
 
-| New field | Type | Req | Notes |
+- **`label` — the identity and linking key — is REQUIRED.** All linking is by label (`node.id === label`; see `GLOSSARY.md`): object-type discrimination and every referential check depend on it, so it is not optional. `label` is *not* an upstream payload field — it is the schema's identity/linking spine.
+- **The upstream LangChain payload fields are present-in-practice but NOT schema-enforced:** `input` (LangChain message array), `output` (LangChain `LLMResult`), `agent_label`, `agent_name`, `model`, `span_id`, `components_in_input`, `components_in_output`. A thinner real trace missing e.g. `span_id` still validates. This is what "additive" means: we assert the identity spine and the new keys we own, and we do not enforce upstream payload we do not own.
+
+| New / required field | Type | Req | Notes |
 |---|---|---|---|
+| `label` | string | ✓ | Identity & linking key; must carry the `action_` prefix (see below). |
 | `session_id` | string | ✓ | → `sessions.session_id`. |
 | `memory_ops` | MemoryOp[] | ✓ | `[]` if the action touched no memory. |
 
-The `human_input` object (`label`, `time`, `input`) also gains **`session_id`** (required); as with actions, only `session_id` is schema-enforced on it.
+The `human_input` object gains **`session_id`** (required) and likewise **requires `label`** (identity key, `human_input_` prefix); its remaining fields (`time`, `input`) are present-in-practice but not schema-enforced.
 
-**Object-type discrimination is by `label` prefix, not by field presence.** An object in a turn's inner array is a `human_input` iff its `label` begins with `human_input_`, and an `action` iff its `label` begins with `action_`. Consumers and the validator MUST NOT infer type from the presence of `agent_label`/`memory_ops` (a valid action may carry an empty `memory_ops`, and existing fields are not schema-required).
+**Object-type discrimination is by `label` prefix, not by field presence.** An object in a turn's inner array is a `human_input` iff its `label` begins with `human_input_`, and an `action` iff its `label` begins with `action_`. Because `label` is now required, discrimination always has a value to key on. Consumers and the validator MUST NOT infer type from the presence of `agent_label`/`memory_ops` (a valid action may carry an empty `memory_ops`, and the payload fields are not schema-required).
 
 ### 4.6 `MemoryOp` — an entry in `action.memory_ops[]`
 

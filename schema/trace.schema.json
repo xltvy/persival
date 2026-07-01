@@ -158,12 +158,12 @@
       "items": { "$ref": "#/$defs/action" }
     },
     "human_input": {
-      "description": "SCHEMA.md 4.5 - existing AgentSeer human_input object. Additive: only the new key session_id is schema-required; existing fields are present-in-practice but not enforced. Type is by label prefix (human_input_*). Permissive: additionalProperties allowed.",
+      "description": "SCHEMA.md 4.5 - existing AgentSeer human_input object. Additive: label (identity/linking key) and the new key session_id are schema-required; the upstream payload fields (time, input) are present-in-practice but not enforced. Type is by label prefix (human_input_*). Permissive: additionalProperties allowed.",
       "type": "object",
-      "required": ["session_id"],
+      "required": ["label", "session_id"],
       "properties": {
         "label": {
-          "description": "Existing id; when present MUST carry the human_input_ prefix (SCHEMA.md 4.5). Not schema-required (additive).",
+          "description": "Identity & linking key (SCHEMA.md 4.5); required; MUST carry the human_input_ prefix.",
           "type": "string",
           "pattern": "^human_input_"
         },
@@ -173,12 +173,12 @@
       }
     },
     "action": {
-      "description": "SCHEMA.md 4.5 - existing AgentSeer action object. Additive: only the two new keys session_id and memory_ops are schema-required; the existing AgentSeer fields (label, input, output, agent_label, agent_name, model, span_id, components_in_input, components_in_output) are present-in-practice but NOT schema-enforced, so a thinner trace still validates. Type is by label prefix (action_*). Permissive: additionalProperties allowed.",
+      "description": "SCHEMA.md 4.5 - existing AgentSeer action object. Additive: label (identity/linking key) plus the two new keys session_id and memory_ops are schema-required; the upstream LangChain payload fields (input, output, agent_label, agent_name, model, span_id, components_in_input, components_in_output) are present-in-practice but NOT schema-enforced, so a thinner trace still validates. Type is by label prefix (action_*). Permissive: additionalProperties allowed.",
       "type": "object",
-      "required": ["session_id", "memory_ops"],
+      "required": ["label", "session_id", "memory_ops"],
       "properties": {
         "label": {
-          "description": "Existing id; when present MUST carry the action_ prefix (SCHEMA.md 4.5). Not schema-required (additive).",
+          "description": "Identity & linking key (SCHEMA.md 4.5); required; MUST carry the action_ prefix.",
           "type": "string",
           "pattern": "^action_"
         },
