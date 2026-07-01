@@ -30,7 +30,9 @@ import HumanInputNode from './humanInputNode';
 import RightPanel from './RightPanel';
 import AttackAnalysisModal from './AttackAnalysisModal';
 import StoreNode from './memory/storeNode';
+import OpNode from './memory/opNode';
 import { spliceMemoryStoreNodes } from './memory/deriveStoreNodes';
+import { spliceOpNodes } from './memory/deriveOpNodes';
 import type { MemoryStore } from './memory/types';
 
 const flowKey = 'example-flow';
@@ -95,14 +97,18 @@ function Flow() {
           fetch('/detailed_graph_langgraph_multi_trace.json'),
         ]);
         const data = await rfResponse.json();
-        // Native trace supplies the authoritative memory_stores list (Phase 1, Fork C).
-        // Fall back to the baked memory nodes if it is missing/unparseable.
+        // Native trace supplies the authoritative memory_stores list (Phase 1) and
+        // the per-action memory_ops (Phase 2, Fork C). Fall back gracefully if it
+        // is missing/unparseable — the graph then renders exactly as before.
         let memoryStores: MemoryStore[] | undefined;
+        let nativeActions: Array<Array<Record<string, unknown>>> | undefined;
         try {
           const nativeData = await nativeResponse.json();
           memoryStores = nativeData?.components?.memory_stores;
+          nativeActions = nativeData?.actions;
         } catch {
           memoryStores = undefined;
+          nativeActions = undefined;
         }
         // Combine nodes and edges from both component and action
         const actionNodes = data.action.nodes.map((node: Node<Record<string, unknown>, string>) => ({
@@ -156,8 +162,23 @@ function Flow() {
           animated: highlightedComponents.length > 0 ? (highlightedComponents.includes(edge.source) && highlightedComponents.includes(edge.target)) ? true : false : false,
         }));
         
-        setActionNodes(actionNodes);
-        setActionEdges(actionEdges);
+        // Phase 2 (Fork C): derive op-node satellites from the native trace's
+        // action.memory_ops and APPEND them + their tether edges. Strictly
+        // additive — the backbone action nodes/edges built above are untouched;
+        // if there are no memory_ops this appends nothing (back-compat).
+        const { nodes: opNodes, edges: opTethers } = spliceOpNodes(
+          data.action.nodes,
+          nativeActions,
+        );
+
+        setActionNodes([
+          ...actionNodes,
+          ...(opNodes as unknown as Node<Record<string, unknown>, string>[]),
+        ]);
+        setActionEdges([
+          ...actionEdges,
+          ...(opTethers as unknown as Edge<Record<string, unknown>>[]),
+        ]);
         setComponentNodes(componentNodes);
         setComponentEdges(componentEdges);
       } catch (error) {
@@ -291,6 +312,12 @@ function Flow() {
       // (deferred). RightPanel's default branch renders nothing for this type.
       setHighlightedComponents([]);
       setSelectedNode(node);
+    } else if (node.type === 'memory_op_node') {
+      // Phase 2: op nodes are selectable but carry NO interaction yet. The
+      // operates_on cross-panel highlight (store_label is on node.data.op) is
+      // Phase 3, so we deliberately do NOT touch highlightedComponents here.
+      setHighlightedComponents([]);
+      setSelectedNode(node);
     } else if (node.type === 'tool_node') {
       setHighlightedComponents([]);
       setSelectedNode(node);
@@ -365,6 +392,7 @@ function Flow() {
               agent_node: AgentNode,
               memory_node: MemoryNode,
               memory_store_node: StoreNode,
+              memory_op_node: OpNode,
               tool_node: ToolNode,
               human_input_node: HumanInputNode
             }}
@@ -431,6 +459,7 @@ function Flow() {
               agent_node: AgentNode,
               memory_node: MemoryNode,
               memory_store_node: StoreNode,
+              memory_op_node: OpNode,
               tool_node: ToolNode,
               human_input_node: HumanInputNode
             }}

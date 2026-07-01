@@ -51,3 +51,47 @@ export interface MemoryStoreNodeData extends Record<string, unknown> {
   store: MemoryStore;
   geometryOverlay: GeometryOverlay;
 }
+
+// ---------------------------------------------------------------------------
+// Persival Phase 2 — memory-op satellite layer (action graph).
+// Mirrors schema/SCHEMA.md §4.6 (MemoryOp) and §5 (operates_on derived view).
+// Op nodes are derived from action.memory_ops and hang off their parent action.
+// ---------------------------------------------------------------------------
+
+/** The five abstract verbs plus noop (GLOSSARY §3; SCHEMA §4.6). */
+export type OpVerb = 'write' | 'read' | 'update' | 'delete' | 'transform' | 'noop';
+
+/** Who performed the op — never external_input (SCHEMA §4.6; GLOSSARY actor). */
+export type Actor = 'reasoning_agent' | 'memory_controller';
+
+/**
+ * A single memory operation on an action, per SCHEMA §4.6. Only `op`,
+ * `native_call`, `actor` and `store_label` are needed for the Phase 2 op-node
+ * FACE; the remaining fields are carried through for later phases (the details
+ * panel, Phase 4) and are optional here because the demo trace omits them.
+ * `store_label` is the operates_on target (§5) — carried on the node for the
+ * Phase 3 cross-panel highlight; Phase 2 does NOT wire the interaction.
+ */
+export interface MemoryOp {
+  op: OpVerb;
+  native_call: string;
+  actor: Actor;
+  store_label: string;
+  item_ids?: string[];
+  retrieval_method?: RetrievalMethod;
+  before_after?: Record<string, unknown>;
+  native_details?: Record<string, unknown>;
+}
+
+/**
+ * `data` payload of a derived `memory_op_node` in the action graph. Carries the
+ * op itself, the parent action's id (the tether target), and the computed
+ * satellite placement (side sign + index within the parent's fan) so geometry
+ * stays inspectable and the node face can stay purely presentational.
+ */
+export interface OpNodeData extends Record<string, unknown> {
+  op: MemoryOp;
+  parentActionId: string;
+  side: -1 | 1;
+  index: number;
+}

@@ -1,0 +1,72 @@
+/* Persival Phase 2 — memory-op satellite node styling.
+   Deliberately SMALL and subordinate to the action node (which is ~220px wide).
+   One hue per verb; the whole pill is tinted so the operation type reads at a
+   glance without needing to parse text. */
+
+.op-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 104px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.op-node-glyph {
+  font-size: 0.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.op-node-verb {
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Verb colour map — one hue per verb, distinct from the store-node palette. */
+.op-node.op-write {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border-color: #66bb6a;
+}
+.op-node.op-read {
+  background: #e3f2fd;
+  color: #0d47a1;
+  border-color: #42a5f5;
+}
+.op-node.op-update {
+  background: #fff8e1;
+  color: #e65100;
+  border-color: #ffb300;
+}
+.op-node.op-delete {
+  background: #ffebee;
+  color: #b71c1c;
+  border-color: #ef5350;
+}
+.op-node.op-transform {
+  background: #f3e5f5;
+  color: #4a148c;
+  border-color: #ab47bc;
+}
+.op-node.op-noop {
+  background: #eceff1;
+  color: #455a64;
+  border-color: #b0bec5;
+}
+
+/* Selection / highlight — orange ring, consistent with storeNode. */
+.op-node.highlighted,
+.selected .op-node {
+  border-color: #ff9800;
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.35);
+}
