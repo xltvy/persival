@@ -82,8 +82,10 @@ The existing `short_term_memory` / `long_term_memory` arrays are **retained** (a
 |---|---|---|---|
 | `item_id` | string | ✓ | **Stable across sessions** — the cross-session join key. |
 | `store_label` | string | ✓ | → `memory_stores.label`; the `resides_in` target. |
-| `status` | enum | ✓ | `active` \| `invalidated` \| `evicted` \| `expired`. |
+| `status` | enum | ✓ | `active` \| `invalidated` \| `evicted` \| `expired`. **TERMINAL state** — see note below. |
 | `provenance` | object | ✓ | See below. |
+
+`status` is the item's **terminal** state (its state at the end of the trace). An item's state at any earlier point — e.g. "was `item_A` still `active` when the transform read it?" — is **reconstructed by replaying `memory_ops` in order**, not read off this field. This is consistent with the content-in-ops / registry model (§2.4): the registry records identity and final state; the timeline lives in the ops.
 
 `provenance`:
 
@@ -121,10 +123,14 @@ The `human_input` object gains **`session_id`** (required) and likewise **requir
 | `native_call` | string | ✓ | The backend-specific call name (attribute, not a type). |
 | `actor` | enum | ✓ | `reasoning_agent` \| `memory_controller`. **Never `external_input`.** |
 | `store_label` | string | ✓ | → `memory_stores.label`; the `operates_on` target. |
-| `item_ids` | string[] | ✓ | Items touched. **Enforced: non-empty (`minItems: 1`) for every op except `noop`; may be `[]` only for `noop`.** |
+| `item_ids` | string[] | ✓ | The **consumed/read set** — items this op read or acted on as input (for `transform`, the SOURCE items consumed; the derived output item is NOT listed here — see note). **Enforced: non-empty (`minItems: 1`) for every op except `noop`; may be `[]` only for `noop`.** |
 | `retrieval_method` | enum | — | `reads` only; overrides the store default. |
 | `before_after` | object | cond. | Required for mutating ops; omitted for `read`/`noop` (§4.7). |
 | `native_details` | object | — | Polymorphic backend payload (§4.9). |
+
+**Newly created items go in `before_after.added`, not `item_ids`.** This holds uniformly for `write` and `transform`: any item the op *creates* is identified by its entry in `before_after.added` (and, for a derived item, by its own `provenance.derived_from`). `item_ids` is only the consumed/read set. So a `transform` lists its source items in `item_ids` and its derived output in `before_after.added` — the two never overlap.
+
+**One backend call may fan out to several abstract ops.** A single native call does not always map to one op: it can decompose into more than one abstract op, because `before_after` deliberately cannot both add a derived item and evict a parent in a single op. The canonical case is MemGPT "evict-to-recall + recursive summary" → a `transform` (produces the summary item) **plus** a `delete` (evicts the source). When a single backend call decomposes this way, **the resulting ops carry the same `native_call` value**, so a consumer can detect that they originated from one underlying call.
 
 ### 4.7 `before_after` — the mutation diff
 
@@ -141,6 +147,8 @@ Present on mutating ops (`write`, `update`, `delete`, `transform`); **omitted** 
 In a `deleted` entry, `new_status` ∈ {`invalidated`, `evicted`, `expired`} — a delete/invalidate never sets `active` (this is a narrowing of the item-level `status` enum for this field only; the item-level `status` enum in §4.4 is unchanged).
 
 `content` strings are the human-readable memory content rendered in the details panel. A `read`'s effect is captured by `item_ids` + `retrieval_method`, not `before_after`. A `transform`'s lineage parents live on the **derived item's** `provenance.derived_from`, not here.
+
+**Effect links are computed, not stored.** A `read` op records *which* items were retrieved (`item_ids`) and *how* (`retrieval_method`), but **whether a retrieved item actually drove the action's output** — the ASR-style judgment — is **not** a schema field. It is computed downstream from the (non-schema-enforced) `output` payload plus analysis. This mirrors the treatment of utility-drop (`GLOSSARY.md` §8): the trace localises what was read; it does not assert the effect. This is by design, not a gap.
 
 ### 4.8 `snapshots[]` — optional session-boundary full state
 

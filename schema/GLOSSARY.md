@@ -98,6 +98,7 @@ The five verbs are the schema. Each maps to backend-native calls via the `native
 
 **TRANSFORM** — migrate or derive an item across tier or representation while preserving its semantic content; many-to-one for summarisation/consolidation.
 - *Native e.g.:* MemGPT evict-to-recall + recursive summary; MemOS `plaintext ⇒ activation ⇒ parametric`. Records `derived_from` parents.
+- *Decomposition:* one backend call may fan out to several abstract ops. MemGPT "evict-to-recall + recursive summary" decomposes into a **transform** op (produces the summary item, carried in `before_after.added`) **plus** a **delete** op (evicts the source item), the two sharing one `native_call` value — because a single op's `before_after` cannot both add a derived item and evict a parent (see `SCHEMA.md` §4.6). This is a multi-op decomposition, not DELETE+WRITE (below).
 - *Not:* a content-changing edit (that is UPDATE). TRANSFORM is content-preserving; modelling it as DELETE+WRITE is wrong because it would sever the lineage chain injection tracing needs.
 
 **NOOP** — a recorded decision that no memory change was made.
