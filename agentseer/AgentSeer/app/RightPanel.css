@@ -1,0 +1,601 @@
+.right-panel {
+  width: 300px;
+  min-width: 180px;
+  max-width: 600px;
+  height: 100%;
+  background: #fff;
+  border: 2px solid #0d47a1;
+  padding: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  resize: horizontal;
+  /* For draggable resizing */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.right-panel h3 {
+  margin-top: 0;
+}
+
+.right-panel-drag-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 10;
+  background: transparent;
+}
+
+.rp-header {
+  background: #0d47a1;
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: bold;
+  text-align: center;
+  padding: 18px 0 12px 0;
+  margin-bottom: 0;
+}
+
+.rp-section {
+  padding: 18px 16px 0 16px;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.95rem;
+}
+
+.rp-label {
+  color: #0d47a1;
+  font-weight: 600;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  font-size: 0.95rem;
+}
+
+.rp-value {
+  color: #0d47a1;
+  margin-bottom: 2px;
+  font-size: 0.95rem;
+}
+
+/* Special styling for agent name */
+.rp-header-main .rp-value {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin: 4px 0;
+}
+
+.rp-box {
+  border: 2px solid #0d47a1;
+  border-radius: 4px;
+  background: #f5f5f5;
+  min-height: 80px;
+  margin-bottom: 8px;
+  margin-top: 2px;
+  padding: 10px;
+  color: #222;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+ 
+.rp-arrow {
+  color: #0d47a1;
+  text-align: center;
+  font-size: 0.8rem;
+  margin: 0 0 8px 0;
+}
+
+.rp-component-item {
+  padding: 6px 10px;
+  margin: 4px 0;
+  background-color: white;
+  border: 1px solid #0d47a1;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rp-component-type {
+  font-weight: 500;
+  color: #0d47a1;
+  text-transform: capitalize;
+  min-width: 60px;
+}
+
+.rp-component-name {
+  color: #0d47a1;
+  flex: 1;
+  word-break: break-word;
+  font-size: 0.9rem;
+  background-color: #e3f2fd;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+.rp-message-item {
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid #0d47a1;
+  border-radius: 2px;
+  background-color: white;
+}
+
+.rp-message-type {
+  font-weight: bold;
+  color: #0d47a1;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.rp-message-content {
+  color: #333;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.rp-tool-calls {
+  margin-top: 8px;
+}
+
+.rp-tool-call {
+  margin: 4px 0;
+  padding: 4px 8px;
+  background-color: #f0f0ff;
+  border-radius: 2px;
+}
+
+.rp-tool-name {
+  color: #0d47a1;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.rp-tool-args {
+  margin: 4px 0 0 0;
+  padding: 6px;
+  background-color: #f8f8ff;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  overflow-x: auto;
+}
+
+.rp-components-section {
+  margin: 8px 0;
+}
+
+.rp-components-header {
+  color: #0d47a1;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+/* New styles for agent node display */
+.rp-header-info {
+  background: #f8f8ff;
+  border: 2px solid #0d47a1;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.rp-header-main {
+  margin-bottom: 12px;
+}
+
+.rp-header-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rp-stat {
+  flex: 1;
+  background: white;
+  padding: 8px;
+  border: 1px solid #0d47a1;
+  border-radius: 4px;
+}
+
+.rp-stat-label {
+  color: #0d47a1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.rp-stat-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.rp-stat-value.high-risk {
+  color: #ff3b30;
+}
+
+.rp-stat-value.medium-risk {
+  color: #ff9500;
+}
+
+.rp-stat-value.low-risk {
+  color: #34c759;
+}
+
+.rp-content-box {
+  border: 2px solid #0d47a1;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.rp-content-header {
+  background: #0d47a1;
+  color: white;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.rp-content-body {
+  background: #f8f8ff;
+  padding: 12px;
+}
+
+.rp-content-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  color: #333;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.rp-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 8px;
+}
+
+.rp-metric-item {
+  background: white;
+  border: 1px solid #0d47a1;
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+.rp-metric-label {
+  color: #0d47a1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.rp-metric-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.rp-metric-value.high-risk {
+  color: #ff3b30;
+}
+
+.rp-metric-value.medium-risk {
+  color: #ff9500;
+}
+
+.rp-metric-value.low-risk {
+  color: #34c759;
+}
+
+/* Loading state */
+.rp-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  color: #0d47a1;
+  font-size: 0.9rem;
+}
+
+.rp-loading-spinner {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #0d47a1;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 1s linear infinite;
+  margin-right: 12px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Error state */
+.rp-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 20px;
+  text-align: center;
+  color: #ff3b30;
+  font-size: 0.9rem;
+}
+
+.rp-error-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+/* Risk Summary Card */
+.rp-summary-card {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border: 2px solid #0d47a1;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.rp-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.rp-summary-icon {
+  font-size: 1.5rem;
+}
+
+.rp-summary-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0d47a1;
+}
+
+.rp-summary-level {
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.95rem;
+}
+
+.rp-summary-level.high {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+.rp-summary-level.medium {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.rp-summary-level.low {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+
+.rp-summary-stats {
+  display: flex;
+  gap: 24px;
+  font-size: 0.95rem;
+}
+
+.rp-summary-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rp-summary-stat-label {
+  color: #546e7a;
+}
+
+.rp-summary-stat-value {
+  font-weight: 700;
+  color: #0d47a1;
+}
+
+/* Progress Bar Styles */
+.rp-progress-container {
+  margin-top: 8px;
+}
+
+.rp-progress-bar-bg {
+  width: 100%;
+  height: 10px;
+  background: #e0e0e0;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.rp-progress-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.rp-progress-bar-fill.high-risk {
+  background: linear-gradient(90deg, #ef5350 0%, #c62828 100%);
+}
+
+.rp-progress-bar-fill.medium-risk {
+  background: linear-gradient(90deg, #ffb74d 0%, #f57c00 100%);
+}
+
+.rp-progress-bar-fill.low-risk {
+  background: linear-gradient(90deg, #81c784 0%, #388e3c 100%);
+}
+
+.rp-progress-value {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.rp-progress-percent {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.rp-progress-percent.high-risk {
+  color: #c62828;
+}
+
+.rp-progress-percent.medium-risk {
+  color: #f57c00;
+}
+
+.rp-progress-percent.low-risk {
+  color: #388e3c;
+}
+
+/* Tooltip Styles */
+.rp-tooltip-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rp-tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: #e3f2fd;
+  border: 1px solid #0d47a1;
+  border-radius: 50%;
+  color: #0d47a1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: help;
+}
+
+.rp-tooltip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: auto;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #263238;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  width: 260px;
+  line-height: 1.4;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  margin-left: 10px;
+  margin-bottom: 0;
+}
+
+.rp-tooltip-text::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateX(-100%) translateY(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: transparent #263238 transparent transparent;
+}
+
+.rp-tooltip-container:hover .rp-tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Expand Button */
+.rp-expand-btn {
+  background: #e3f2fd;
+  border: 1px solid #0d47a1;
+  color: #0d47a1;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all 0.2s ease;
+}
+
+.rp-expand-btn:hover {
+  background: #0d47a1;
+  color: white;
+}
+
+/* Metric with Progress */
+.rp-metric-with-progress {
+  background: white;
+  border: 1px solid #0d47a1;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.rp-metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.rp-metric-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0d47a1;
+}
+
+/* Component Risk Display */
+.rp-component-risk {
+  margin-left: auto;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 42px;
+  text-align: center;
+}
+
+.rp-component-risk.high-risk {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+.rp-component-risk.medium-risk {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.rp-component-risk.low-risk {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+
+.rp-component-item.high-risk-border {
+  border-color: #dc3545;
+  background: #fff5f5;
+}

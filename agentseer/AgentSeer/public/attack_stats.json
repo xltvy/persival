@@ -1,0 +1,11 @@
+{
+  "total_actions": 29,
+  "total_attack_examples": 63,
+  "average_asr": 0.7462758620689655,
+  "high_risk_actions": 9,
+  "categories": {
+    "Authority": 6,
+    "Roleplay": 9,
+    "Logic": 0
+  }
+}
