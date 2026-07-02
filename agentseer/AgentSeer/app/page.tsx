@@ -33,7 +33,7 @@ import StoreNode from './memory/storeNode';
 import OpNode from './memory/opNode';
 import { spliceMemoryStoreNodes } from './memory/deriveStoreNodes';
 import { spliceOpNodes } from './memory/deriveOpNodes';
-import type { MemoryStore } from './memory/types';
+import type { MemoryStore, OpNodeData } from './memory/types';
 
 const flowKey = 'example-flow';
 
@@ -65,6 +65,12 @@ function Flow() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(50); // Default width for the left panel
   const [isDragging, setIsDragging] = useState(false);
   const [highlightedComponents, setHighlightedComponents] = useState<string[]>([]);
+  // Phase 3: the ACTION panel's highlight driver, SEPARATE from highlightedComponents
+  // (which drives the component panel). Holds op-node ids lit by a store-click
+  // (reciprocal operates_on) or by selecting an action (its own ops, D5b). Kept
+  // apart because pushing op-ids into highlightedComponents would blank the clicked
+  // store (op-ids match no component node → the component effect dims everything).
+  const [highlightedOps, setHighlightedOps] = useState<string[]>([]);
   const [showInputComponents, setShowInputComponents] = useState(true); // Toggle between input and output components
   const [showAttackModal, setShowAttackModal] = useState(false); // Global attack analysis modal
 
@@ -197,24 +203,42 @@ function Flow() {
           .filter(edge => edge.source === selectedNode?.data.label)
           .map(edge => edge.target);
 
-        // Create set of active nodes (selected node + target nodes)
+        // Create set of active nodes (selected node + its edge targets).
         const activeNodeIds = new Set([selectedNode?.id, ...targetNodeIds]);
 
-        // Update action nodes with opacity changes. Phase 2: op-node satellites
-        // are EXEMPT from the generic selection dim — they always keep full
-        // opacity so selecting an action never fades its own op layer. (The
-        // "select action → highlight its ops" relationship is Phase 3.)
-        setActionNodes(nodes => nodes.map(node => ({
-          ...node,
-          isHighlighted: highlightedComponents.includes(node.id),
-          style: {
-            ...node.style,
-            opacity: node.type === 'memory_op_node'
-              ? 1
-              : (selectedNode ? (activeNodeIds.has(node.id) ? 1 : 0.3) : 1),
-            transition: 'opacity 0.3s ease',
-          },
-        })));
+        // Phase 3: an op-set highlight (highlightedOps) is produced by a store-click
+        // (reciprocal operates_on) or by selecting an action (its own ops, D5b).
+        const opHighlightActive = highlightedOps.length > 0;
+        const highlightedOpSet = new Set(highlightedOps);
+
+        // Unified opacity rule (D3). The Phase-2 op-node exemption is now
+        // CONDITIONAL: op nodes stay exempt (opacity 1) under a plain selection, but
+        // dim-unless-matched once an op-set highlight is active. Non-op action nodes
+        // stay lit if they are in the ordinary selection set OR are a parent action
+        // of a matched op ("which actions touched this store"). Both cases share the
+        // one expression below — no stacked patches.
+        setActionNodes(nodes => {
+          const litActionIds = new Set<string | undefined>(activeNodeIds);
+          for (const n of nodes) {
+            if (n.type === 'memory_op_node' && highlightedOpSet.has(n.id)) {
+              litActionIds.add((n.data as unknown as OpNodeData).parentActionId);
+            }
+          }
+          return nodes.map(node => {
+            let opacity: number;
+            if (node.type === 'memory_op_node') {
+              opacity = opHighlightActive ? (highlightedOpSet.has(node.id) ? 1 : 0.3) : 1;
+            } else {
+              const anyHighlight = selectedNode != null || opHighlightActive;
+              opacity = anyHighlight ? (litActionIds.has(node.id) ? 1 : 0.3) : 1;
+            }
+            return {
+              ...node,
+              isHighlighted: highlightedComponents.includes(node.id),
+              style: { ...node.style, opacity, transition: 'opacity 0.3s ease' },
+            };
+          });
+        });
 
         const actionEdges_ = actionEdges.map(edge => ({
           ...edge,
@@ -236,7 +260,7 @@ function Flow() {
     };
 
     loadInitialData();
-  }, [selectedNode, highlightedComponents]);
+  }, [selectedNode, highlightedComponents, highlightedOps]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -275,6 +299,11 @@ function Flow() {
     loadInitialData();
   }, [highlightedComponents, showInputComponents]);
 
+  // Clearing discipline (D4): EVERY branch fully overwrites BOTH highlight atoms so
+  // neither panel can keep a stale highlight. Symmetric rule — op-click sets
+  // highlightedComponents + clears highlightedOps; store-click sets highlightedOps +
+  // clears highlightedComponents; action-select sets both (its components + its own
+  // ops); every other branch clears both.
   const onNodeClick: NodeMouseHandler = useCallback((event, node) => {
     if (node.type === 'llm_call_node') {
       const nodeData = node.data as unknown as ActionNodeData;
@@ -287,48 +316,66 @@ function Flow() {
         const agentId = nodeData.agent_id;
         setHighlightedComponents([...outputComponents, agentId]);
       }
+      // D5b: light this action's OWN op satellites (op nodes tethered to it).
+      const ownOps = actionNodes
+        .filter(n => n.type === 'memory_op_node'
+          && (n.data as unknown as OpNodeData).parentActionId === node.id)
+        .map(n => n.id);
+      setHighlightedOps(ownOps);
       setSelectedNode(node);
     } else if (node.type === 'agent_node') {
       // Find all components connected to this agent
       const agentId = node.id;
       const connectedComponents: string[] = [agentId]; // Include the agent itself
-      
+
       // Find connected tools and memories via component edges
       componentEdges.forEach(edge => {
         if (edge.source === agentId) {
           connectedComponents.push(edge.target);
         }
       });
-      
+
       // Find action nodes that use this agent
       actionNodes.forEach(actionNode => {
         if (actionNode.data && actionNode.data.agent_id === agentId) {
           connectedComponents.push(actionNode.id);
         }
       });
-      
+
       setHighlightedComponents(connectedComponents);
+      setHighlightedOps([]);
       setSelectedNode(node);
     } else if (node.type === 'memory_node') {
       setHighlightedComponents([]);
+      setHighlightedOps([]);
       setSelectedNode(node);
     } else if (node.type === 'memory_store_node') {
-      // Phase 1: store nodes are selectable but have no details panel yet
-      // (deferred). RightPanel's default branch renders nothing for this type.
+      // D2 reciprocal (operates_on): light every op that touched this store
+      // (store id === store.label === op.store_label), and — via the opacity rule —
+      // their parent actions. Clear highlightedComponents so the clicked store stays
+      // lit in its own panel (component effect: no-highlight ⇒ all opacity 1).
+      const touchingOps = actionNodes
+        .filter(n => n.type === 'memory_op_node'
+          && (n.data as unknown as OpNodeData).op.store_label === node.id)
+        .map(n => n.id);
       setHighlightedComponents([]);
+      setHighlightedOps(touchingOps);
       setSelectedNode(node);
     } else if (node.type === 'memory_op_node') {
-      // Phase 2: op nodes are selectable but carry NO interaction yet. The
-      // operates_on cross-panel highlight (store_label is on node.data.op) is
-      // Phase 3, so we deliberately do NOT touch highlightedComponents here.
-      setHighlightedComponents([]);
+      // D1 forward (operates_on): light the store this op touched in the component
+      // panel (store node id === store.label). Store only — no agent id (v1).
+      const storeLabel = (node.data as unknown as OpNodeData).op.store_label;
+      setHighlightedComponents([storeLabel]);
+      setHighlightedOps([]);
       setSelectedNode(node);
     } else if (node.type === 'tool_node') {
       setHighlightedComponents([]);
+      setHighlightedOps([]);
       setSelectedNode(node);
     } else {
       // Clear highlights when clicking any other node type
       setHighlightedComponents([]);
+      setHighlightedOps([]);
       setSelectedNode(null);
     }
   }, [showInputComponents, componentEdges, actionNodes]);
@@ -339,6 +386,7 @@ function Flow() {
       return;
     }
     setHighlightedComponents([]);
+    setHighlightedOps([]);
     setSelectedNode(null);
   }, []);
 
@@ -348,6 +396,7 @@ function Flow() {
       return;
     }
     setHighlightedComponents([]);
+    setHighlightedOps([]);
     setSelectedNode(null);
   }, []);
 
