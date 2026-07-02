@@ -765,7 +765,11 @@
         "label": "action_3",
         "memory_ops": [
           { "op": "write", "native_call": "append_to_agent_messages",
-            "actor": "reasoning_agent", "store_label": "short_term_memory_2" }
+            "actor": "reasoning_agent", "store_label": "short_term_memory_2",
+            "item_ids": [ "msg_rev_1" ],
+            "before_after": { "added": [ { "item_id": "msg_rev_1",
+              "content": "Q3 revenue reached $4.2M, up 18% QoQ, driven mainly by the enterprise tier." } ] },
+            "native_details": { "position": "append", "index": 7 } }
         ],
         "input": [
           {
@@ -1069,7 +1073,14 @@
         "label": "action_4",
         "memory_ops": [
           { "op": "update", "native_call": "update_agent_messages",
-            "actor": "reasoning_agent", "store_label": "short_term_memory_2" }
+            "actor": "reasoning_agent", "store_label": "short_term_memory_2",
+            "item_ids": [ "msg_rev_1" ],
+            "before_after": { "updated": [ { "item_id": "msg_rev_1",
+              "before": "Q3 revenue reached $4.2M, up 18% QoQ, driven mainly by the enterprise tier.",
+              "after": "Q3 revenue reached $4.2M, up 18% QoQ; the enterprise tier contributed 62% of net-new ARR." } ] },
+            "native_details": { "decision": "UPDATE",
+              "old_fact": "Enterprise tier drove Q3 revenue growth.",
+              "new_fact": "Enterprise tier contributed 62% of net-new ARR in Q3." } }
         ],
         "input": [
           {
@@ -8029,7 +8040,10 @@
         "label": "action_17",
         "memory_ops": [
           { "op": "read", "native_call": "get_information_from_knowledge_base",
-            "actor": "reasoning_agent", "store_label": "long_term_memory_0" }
+            "actor": "reasoning_agent", "store_label": "long_term_memory_0",
+            "item_ids": [ "kb_pricing_policy", "kb_discount_tiers" ],
+            "retrieval_method": "vector",
+            "native_details": { "query": "What is the current enterprise discount policy?", "top_k": 2 } }
         ],
         "input": [
           {
@@ -10189,9 +10203,23 @@
         "label": "action_20",
         "memory_ops": [
           { "op": "transform", "native_call": "recursive_summary_evict",
-            "actor": "memory_controller", "store_label": "short_term_memory_1" },
+            "actor": "memory_controller", "store_label": "short_term_memory_1",
+            "item_ids": [ "msg_fr_2", "msg_fr_3", "msg_fr_4" ],
+            "before_after": { "added": [ { "item_id": "summary_fr_1",
+              "content": "Summary of prior turns: revenue is up 18% QoQ, order volume up 9%, and product mix is shifting toward the enterprise tier; recommendation is to expand enterprise coverage." } ] },
+            "native_details": {
+              "summary": "Revenue +18% QoQ, orders +9%, product mix shifting to enterprise; recommend expanding enterprise coverage.",
+              "evicted_message_ids": [ "msg_fr_2", "msg_fr_3", "msg_fr_4" ] } },
           { "op": "delete", "native_call": "recursive_summary_evict",
-            "actor": "memory_controller", "store_label": "short_term_memory_1" }
+            "actor": "memory_controller", "store_label": "short_term_memory_1",
+            "item_ids": [ "msg_fr_2", "msg_fr_3", "msg_fr_4" ],
+            "before_after": { "deleted": [
+              { "item_id": "msg_fr_2", "content": "Revenue analyst: Q3 revenue $4.2M, +18% QoQ.", "new_status": "evicted" },
+              { "item_id": "msg_fr_3", "content": "Order analyst: order volume +9% QoQ, driven by repeat buyers.", "new_status": "evicted" },
+              { "item_id": "msg_fr_4", "content": "Product analyst: enterprise SKUs now 41% of mix, up from 34%.", "new_status": "evicted" } ] },
+            "native_details": {
+              "reason": "recursive_summary",
+              "evicted_message_ids": [ "msg_fr_2", "msg_fr_3", "msg_fr_4" ] } }
         ],
         "input": [
           {
@@ -10993,7 +11021,10 @@
         "label": "action_22",
         "memory_ops": [
           { "op": "noop", "native_call": "noop_no_write",
-            "actor": "reasoning_agent", "store_label": "short_term_memory_0" }
+            "actor": "reasoning_agent", "store_label": "short_term_memory_0",
+            "item_ids": [],
+            "native_details": { "decision": "NOOP",
+              "reason": "No new salient information to store this turn." } }
         ],
         "input": [
           {
@@ -12326,7 +12357,10 @@
         "label": "action_26",
         "memory_ops": [
           { "op": "read", "native_call": "get_information_from_knowledge_base",
-            "actor": "reasoning_agent", "store_label": "long_term_memory_0" }
+            "actor": "reasoning_agent", "store_label": "long_term_memory_0",
+            "item_ids": [ "kb_pricing_policy" ],
+            "retrieval_method": "vector",
+            "native_details": { "query": "Summarise the enterprise pricing tier for the final report.", "top_k": 1 } }
         ],
         "input": [
           {

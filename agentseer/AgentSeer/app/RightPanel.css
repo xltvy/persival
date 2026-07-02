@@ -599,3 +599,83 @@
   border-color: #dc3545;
   background: #fff5f5;
 }
+
+/* Phase 4 — memory op / store details panel */
+
+/* Op verb badge row in the op-panel header (reuses .op-node from opNode.css). */
+.rp-op-badge-row {
+  display: flex;
+  margin-bottom: 12px;
+}
+
+/* Before/After diff rows. One tinted block per changed item; tag colour matches the
+   op-verb palette so the diff reads consistently with the graph. */
+.rp-diff-item {
+  background: white;
+  border: 1px solid #0d47a1;
+  border-left-width: 4px;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 8px 0;
+}
+.rp-diff-item.added { border-left-color: #66bb6a; }
+.rp-diff-item.updated { border-left-color: #ffb300; }
+.rp-diff-item.deleted { border-left-color: #ef5350; }
+.rp-diff-item.read { border-left-color: #42a5f5; }
+
+.rp-diff-tag {
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+}
+.rp-diff-tag.added { color: #2e7d32; }
+.rp-diff-tag.updated { color: #e65100; }
+.rp-diff-tag.deleted { color: #c62828; }
+
+.rp-diff-id {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #546e7a;
+  margin-bottom: 4px;
+}
+
+.rp-diff-content {
+  color: #222;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.rp-diff-content.before {
+  color: #b71c1c;
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+.rp-diff-content.after { color: #1b5e20; }
+
+.rp-diff-arrow {
+  color: #0d47a1;
+  text-align: center;
+  font-size: 1rem;
+  margin: 2px 0;
+}
+
+/* Generic native_details rows + store-attribute rows (same shape). */
+.rp-nd-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+.rp-nd-row:last-child { border-bottom: none; }
+
+.rp-nd-value {
+  color: #222;
+  font-size: 0.9rem;
+  text-align: right;
+  word-break: break-word;
+  max-width: 65%;
+}

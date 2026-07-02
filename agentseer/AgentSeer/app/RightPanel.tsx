@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import './RightPanel.css';
+// Reuse the Phase-2 op-pill styling (verb glyph + colour) for the panel header badge.
+import './memory/opNode.css';
 
 interface RightPanelProps {
   selectedNode: any;
@@ -59,11 +61,36 @@ interface AgentInfo {
   risk: number;
 }
 
-interface MemoryInfo {
-  id: string;
-  memory_content: string;
-  memory_index: number;
-  risk: number;
+// Phase 4 — a memory OP selected in the action graph. The op-node face carries only
+// op/native_call/actor/store_label; before_after + native_details are re-read from the
+// native trace (SCHEMA §4.6/§4.7/§4.9). store_name is store_label resolved to the name.
+interface MemoryOpInfo {
+  op: string;
+  actor: string;
+  native_call: string;
+  store_label: string;
+  store_name: string;
+  retrieval_method?: string;
+  item_ids?: string[];
+  before_after?: {
+    added?: Array<{ item_id: string; content: string }>;
+    updated?: Array<{ item_id: string; before: string; after: string }>;
+    deleted?: Array<{ item_id: string; content: string; new_status: string }>;
+  };
+  native_details?: Record<string, unknown>;
+}
+
+// Phase 4 — a memory STORE selected in the component graph. All attributes are already
+// on node.data.store (the axes Phase 1 keeps OFF the node face); no trace fetch needed.
+interface MemoryStoreInfo {
+  name: string;
+  locus: string;
+  substrate: string;
+  persistence: string;
+  scope: string;
+  retrieval_method: string;
+  agent?: string;
+  risk?: number;
 }
 
 interface ToolInfo {
@@ -90,6 +117,37 @@ interface ActionAttackData {
 
 const MIN_WIDTH = 20; // Percentage
 const MAX_WIDTH = 40; // Percentage
+
+// Phase-2 verb glyphs, reused on the op-panel header badge (mirrors opNode.tsx).
+const VERB_GLYPH: Record<string, string> = {
+  write: '✎', read: '👁', update: '↻', delete: '✕', transform: '⤳', noop: '∅',
+};
+
+// native_details label map — COSMETIC ONLY. It prettifies the DISPLAYED label for a
+// handful of common keys across backends (MemGPT / Mem0 / MemOS-ish). It is NOT a
+// whitelist: an unmapped key still renders (its raw key + value) via `prettyKey`'s
+// fallback. There is deliberately NO per-backend branching anywhere — backend identity
+// lives in the data (native_call + native_details contents), never in this control flow.
+const NATIVE_DETAIL_LABELS: Record<string, string> = {
+  summary: 'Summary',
+  evicted_message_ids: 'Evicted messages',
+  decision: 'Decision',
+  old_fact: 'Old fact',
+  new_fact: 'New fact',
+  // MemOS MemCube-ish keys — still just cosmetic labels.
+  mem_cube_id: 'MemCube ID',
+  priority: 'Priority',
+  ttl: 'TTL',
+  access_count: 'Access count',
+};
+
+// Cosmetic label lookup; unmapped keys fall back to the RAW key so nothing is dropped.
+const prettyKey = (k: string): string => NATIVE_DETAIL_LABELS[k] ?? k;
+
+// The before/after box header adapts to the op: mutating ops show a diff, read shows
+// what was retrieved, noop shows the (no-)result.
+const beforeAfterHeader = (op: string): string =>
+  op === 'read' ? 'Retrieved Items' : op === 'noop' ? 'Result' : 'Before / After';
 
 // Helper function to get risk class based on value
 const getRiskClass = (risk: number): string => {
@@ -177,7 +235,8 @@ const RightPanel: React.FC<RightPanelProps> = ({ selectedNode, width, setWidth }
   const panelRef = useRef<HTMLDivElement>(null);
   const [actionInfo, setActionInfo] = useState<ActionInfo | null>(null);
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
-  const [memoryInfo, setMemoryInfo] = useState<MemoryInfo | null>(null);
+  const [memoryOpInfo, setMemoryOpInfo] = useState<MemoryOpInfo | null>(null);
+  const [memoryStoreInfo, setMemoryStoreInfo] = useState<MemoryStoreInfo | null>(null);
   const [toolInfo, setToolInfo] = useState<ToolInfo | null>(null);
   const [actionAttackData, setActionAttackData] = useState<ActionAttackData | null>(null);
   const [showJailbreakExamples, setShowJailbreakExamples] = useState(false);
@@ -293,7 +352,8 @@ const RightPanel: React.FC<RightPanelProps> = ({ selectedNode, width, setWidth }
           }
           
           setAgentInfo(null);
-          setMemoryInfo(null);
+          setMemoryOpInfo(null);
+          setMemoryStoreInfo(null);
           setToolInfo(null);
         } catch (error) {
           console.error('Failed to load action info:', error);
@@ -316,34 +376,73 @@ const RightPanel: React.FC<RightPanelProps> = ({ selectedNode, width, setWidth }
             });
           }
           setActionInfo(null);
-          setMemoryInfo(null);
+          setMemoryOpInfo(null);
+          setMemoryStoreInfo(null);
           setToolInfo(null);
         } catch (error) {
           console.error('Failed to load agent info:', error);
           setAgentInfo(null);
           setError('Failed to load agent information. Please try again.');
         }
-      } else if (selectedNode?.type === 'memory_node') {
+      } else if (selectedNode?.type === 'memory_op_node') {
+        // Phase 4: the op-node face carries only op/native_call/actor/store_label, so
+        // RE-READ the full op (before_after + native_details + item_ids) from the native
+        // trace. Locate it by parentActionId + op index — the op-node id is
+        // `${actionLabel}__op_${index}`, and OpNodeData carries both (Phase 2), so this
+        // is an exact lookup, not a guess.
         try {
           const response = await fetch('/detailed_graph_langgraph_multi_trace.json');
           const data = await response.json();
-          const memory = data?.components?.memories?.find((m: any) => m?.label === selectedNode?.id);
-          if (memory) {
-            setMemoryInfo({
-              id: memory.label,
-              memory_content: memory.value,
-              memory_index: memory.index || 0,
-              risk: memory.risk || 0
-            });
-          }
+          const faceOp = selectedNode?.data?.op || {};
+          const parentActionId = selectedNode?.data?.parentActionId;
+          const opIndex = selectedNode?.data?.index ?? 0;
+          const action = data?.actions?.flat()?.find((a: any) => a?.label === parentActionId);
+          const traceOp = action?.memory_ops?.[opIndex] ?? faceOp;
+          const store = data?.components?.memory_stores?.find(
+            (s: any) => s?.label === traceOp.store_label,
+          );
+          setMemoryOpInfo({
+            op: traceOp.op,
+            actor: traceOp.actor,
+            native_call: traceOp.native_call,
+            store_label: traceOp.store_label,
+            store_name: store?.name ?? traceOp.store_label, // resolve to name; fall back to label
+            retrieval_method: traceOp.retrieval_method,
+            item_ids: traceOp.item_ids,
+            before_after: traceOp.before_after,
+            native_details: traceOp.native_details,
+          });
           setActionInfo(null);
           setAgentInfo(null);
           setToolInfo(null);
+          setMemoryStoreInfo(null);
         } catch (error) {
-          console.error('Failed to load memory info:', error);
-          setMemoryInfo(null);
-          setError('Failed to load memory information. Please try again.');
+          console.error('Failed to load memory op info:', error);
+          setMemoryOpInfo(null);
+          setError('Failed to load memory operation information. Please try again.');
         }
+      } else if (selectedNode?.type === 'memory_store_node') {
+        // Phase 4: light store panel — every attribute is already on node.data.store
+        // (the axes Phase 1 keeps off the node face), so no trace fetch is needed.
+        const store = selectedNode?.data?.store;
+        if (store) {
+          setMemoryStoreInfo({
+            name: store.name,
+            locus: store.locus,
+            substrate: store.substrate,
+            persistence: store.persistence,
+            scope: store.scope,
+            retrieval_method: store.retrieval_method,
+            agent: store.agent,
+            risk: selectedNode?.data?.geometryOverlay?.risk,
+          });
+        } else {
+          setMemoryStoreInfo(null);
+        }
+        setActionInfo(null);
+        setAgentInfo(null);
+        setToolInfo(null);
+        setMemoryOpInfo(null);
       } else if (selectedNode?.type === 'tool_node') {
         try {
           const response = await fetch('/detailed_graph_langgraph_multi_trace.json');
@@ -364,7 +463,8 @@ const RightPanel: React.FC<RightPanelProps> = ({ selectedNode, width, setWidth }
           }
           setActionInfo(null);
           setAgentInfo(null);
-          setMemoryInfo(null);
+          setMemoryOpInfo(null);
+          setMemoryStoreInfo(null);
         } catch (error) {
           console.error('Failed to load tool info:', error);
           setToolInfo(null);
@@ -373,7 +473,8 @@ const RightPanel: React.FC<RightPanelProps> = ({ selectedNode, width, setWidth }
       } else {
         setActionInfo(null);
         setAgentInfo(null);
-        setMemoryInfo(null);
+        setMemoryOpInfo(null);
+        setMemoryStoreInfo(null);
         setToolInfo(null);
       }
       
@@ -420,6 +521,92 @@ const RightPanel: React.FC<RightPanelProps> = ({ selectedNode, width, setWidth }
     }
   };
 
+  // Header title for the label-less memory node types (op/store carry no data.label).
+  const getHeaderTitle = (): string => {
+    if (!selectedNode) return '';
+    if (selectedNode.type === 'memory_op_node') {
+      const verb = String(selectedNode.data?.op?.op ?? 'op').toUpperCase();
+      const storeName = memoryOpInfo?.store_name ?? selectedNode.data?.op?.store_label ?? '';
+      return `${verb} · ${storeName}`;
+    }
+    if (selectedNode.type === 'memory_store_node') {
+      return selectedNode.data?.store?.name ?? 'Memory Store';
+    }
+    return selectedNode.data?.label ?? '';
+  };
+
+  // Before/After diff (SCHEMA §4.7). Renders only the arrays present; degrades with NO
+  // empty box for read (retrieved items) and noop (decision / no change).
+  const renderBeforeAfter = (info: MemoryOpInfo): React.ReactNode => {
+    const ba = info.before_after;
+    const hasDiff = ba && (ba.added?.length || ba.updated?.length || ba.deleted?.length);
+    if (!hasDiff) {
+      if (info.op === 'read') {
+        const ids = info.item_ids ?? [];
+        const method = info.retrieval_method ? ` via ${info.retrieval_method}` : '';
+        return (
+          <div className="rp-content-body">
+            <div className="rp-value">Retrieved {ids.length} item(s){method}</div>
+            {ids.map((id) => (
+              <div key={id} className="rp-diff-item read">
+                <span className="rp-diff-id">{id}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      // noop (or any op that legitimately carries no before_after)
+      const decision = info.native_details?.decision as string | undefined;
+      return (
+        <div className="rp-content-body">
+          <div className="rp-value">{decision ? `Decision: ${decision}` : 'No memory change.'}</div>
+        </div>
+      );
+    }
+    return (
+      <div className="rp-content-body">
+        {ba!.added?.map((a) => (
+          <div key={a.item_id} className="rp-diff-item added">
+            <div className="rp-diff-tag added">＋ added</div>
+            <div className="rp-diff-id">{a.item_id}</div>
+            <div className="rp-diff-content">{renderContent(a.content)}</div>
+          </div>
+        ))}
+        {ba!.updated?.map((u) => (
+          <div key={u.item_id} className="rp-diff-item updated">
+            <div className="rp-diff-tag updated">✎ updated</div>
+            <div className="rp-diff-id">{u.item_id}</div>
+            <div className="rp-diff-content before">{renderContent(u.before)}</div>
+            <div className="rp-diff-arrow">→</div>
+            <div className="rp-diff-content after">{renderContent(u.after)}</div>
+          </div>
+        ))}
+        {ba!.deleted?.map((d) => (
+          <div key={d.item_id} className="rp-diff-item deleted">
+            <div className="rp-diff-tag deleted">－ removed ({d.new_status})</div>
+            <div className="rp-diff-id">{d.item_id}</div>
+            <div className="rp-diff-content">{renderContent(d.content)}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // GENERIC native_details renderer (SCHEMA §4.9). Iterates whatever keys the object
+  // carries; the label map (prettyKey) is cosmetic only — an unmapped key still renders
+  // with its raw key. NO per-backend branching: this same code renders MemGPT, Mem0 and
+  // MemOS payloads identically. (Architecture-neutrality, now applied to the panel.)
+  const renderNativeDetails = (nd: Record<string, unknown>): React.ReactNode => (
+    <div className="rp-content-body">
+      {Object.entries(nd).map(([k, v]) => (
+        <div key={k} className="rp-nd-row">
+          <div className="rp-label">{prettyKey(k)}</div>
+          <div className="rp-nd-value">{renderContent(v)}</div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div
       className="right-panel"
@@ -427,7 +614,7 @@ const RightPanel: React.FC<RightPanelProps> = ({ selectedNode, width, setWidth }
       style={{ width: `${width}%` }}
     >
       <div className="right-panel-drag-handle" onMouseDown={onMouseDown} role="presentation" />
-      <div className="rp-header">{selectedNode ? selectedNode.data.label : ''}</div>
+      <div className="rp-header">{getHeaderTitle()}</div>
       
       {isLoading ? (
         <div className="rp-loading">
@@ -778,29 +965,80 @@ const RightPanel: React.FC<RightPanelProps> = ({ selectedNode, width, setWidth }
         </>
       )}
 
-      {memoryInfo && (
-        <div className="rp-section">
-          <div className="rp-header-info">
-            <div className="rp-header-main">
-              <div className="rp-label">Memory Index:</div>
-              <div className="rp-value">{memoryInfo.memory_index}</div>
-            </div>
-            <div className="rp-header-stats">
-              <div className="rp-stat">
-                <div className="rp-stat-label">Risk Score:</div>
-                <div className={`rp-stat-value ${memoryInfo.risk > 0.7 ? 'high-risk' : memoryInfo.risk > 0.3 ? 'medium-risk' : 'low-risk'}`}>
-                  {Number(memoryInfo.risk).toFixed(3)}
-                </div>
+      {memoryOpInfo && (
+        <>
+          <div className="rp-section">
+            <div className="rp-header-info">
+              <div className="rp-op-badge-row">
+                <span className={`op-node op-${memoryOpInfo.op}`}>
+                  <span className="op-node-glyph">{VERB_GLYPH[memoryOpInfo.op] ?? '•'}</span>
+                  <span className="op-node-verb">{memoryOpInfo.op}</span>
+                </span>
+              </div>
+              <div className="rp-header-main">
+                <div className="rp-label">Actor:</div>
+                <div className="rp-value">{memoryOpInfo.actor}</div>
+                <div className="rp-label">Native call:</div>
+                <div className="rp-value">{memoryOpInfo.native_call}</div>
+                <div className="rp-label">Store touched:</div>
+                <div className="rp-value">{memoryOpInfo.store_name}</div>
+                {memoryOpInfo.retrieval_method && (
+                  <>
+                    <div className="rp-label">Retrieval method:</div>
+                    <div className="rp-value">{memoryOpInfo.retrieval_method}</div>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="rp-content-box">
-            <div className="rp-content-header">Memory Content</div>
-            <div className="rp-content-body">
-              <pre>{memoryInfo.memory_content}</pre>
+          <div className="rp-section">
+            <div className="rp-content-box">
+              <div className="rp-content-header">{beforeAfterHeader(memoryOpInfo.op)}</div>
+              {renderBeforeAfter(memoryOpInfo)}
+            </div>
+
+            {memoryOpInfo.native_details && Object.keys(memoryOpInfo.native_details).length > 0 && (
+              <div className="rp-content-box">
+                <div className="rp-content-header">Backend details</div>
+                {renderNativeDetails(memoryOpInfo.native_details)}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {memoryStoreInfo && (
+        <div className="rp-section">
+          <div className="rp-header-info">
+            <div className="rp-header-main">
+              <div className="rp-label">Store Name:</div>
+              <div className="rp-value">{memoryStoreInfo.name}</div>
             </div>
           </div>
+
+          <div className="rp-content-box">
+            <div className="rp-content-header">Store Attributes</div>
+            <div className="rp-content-body">
+              <div className="rp-nd-row"><div className="rp-label">Locus</div><div className="rp-nd-value">{memoryStoreInfo.locus}</div></div>
+              <div className="rp-nd-row"><div className="rp-label">Substrate</div><div className="rp-nd-value">{memoryStoreInfo.substrate}</div></div>
+              <div className="rp-nd-row"><div className="rp-label">Persistence</div><div className="rp-nd-value">{memoryStoreInfo.persistence}</div></div>
+              <div className="rp-nd-row"><div className="rp-label">Scope</div><div className="rp-nd-value">{memoryStoreInfo.scope}</div></div>
+              <div className="rp-nd-row"><div className="rp-label">Retrieval method</div><div className="rp-nd-value">{memoryStoreInfo.retrieval_method}</div></div>
+              {memoryStoreInfo.agent && (
+                <div className="rp-nd-row"><div className="rp-label">Owning agent</div><div className="rp-nd-value">{memoryStoreInfo.agent}</div></div>
+              )}
+            </div>
+          </div>
+
+          {memoryStoreInfo.risk !== undefined && (
+            <div className="rp-content-box">
+              <div className="rp-content-header">Demo Metric</div>
+              <div className="rp-content-body">
+                <div className="rp-value">Risk: {Number(memoryStoreInfo.risk).toFixed(3)} (demo figure — not a store property)</div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
